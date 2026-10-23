@@ -1,3 +1,19 @@
+# 1.1.81
+
+## 中文
+
+- 修复作用域补丁跨字符串、跨行匹配造成的宿主 JavaScript 语法错误。保留 applicability 模板及中间代码，重复应用不再改写。
+- 统一备份和 pristine 快照的污染检测，覆盖 V1/V2 intro、scope 和简化 intro，避免把历史半清洗文本当成官方原文。
+- 增加补丁生成代码语法、重复应用、备份刷新及快照修复的回归测试，并接入 CI。
+- 同步中英文 README 和一键安装链接的版本号。
+
+## English
+
+- Keep scope replacements within their string boundaries so applying the patch cannot corrupt host JavaScript or consume intervening declarations.
+- Share backup and pristine-snapshot contamination detection, including older intro and scope variants without the newer suffix.
+- Add CI regression coverage for generated syntax, repeated application, backup refresh and snapshot repair.
+- Synchronize README and install-link versions.
+
 # 1.1.80
 
 ## 中文

@@ -44,6 +44,9 @@ jobs:
             console.log('release-notes header ok:',first);
           "
 
+      - name: Regression tests
+        run: npm test
+
       - name: Check for dead repository links
         run: |
           set +e
