@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - beta
+  pull_request:
+    branches:
+      - master
+      - beta
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Syntax-check plugin entry
+        run: |
+          node --check lib/index.js
+          node --check lib/core.js
+          node --check lib/state.js
+          node --check lib/reapply.js
+          node --check lib/update.js
+          node --check lib/redteam/ui.js
+          node --check client.js
+
+      - name: Validate package.json and release-notes header
+        run: |
+          node -e "const p=require('./package.json');if(!p.version)throw new Error('no version');console.log('version',p.version)"
+          node -e "
+            const fs=require('fs');
+            const v=require('./package.json').version;
+            const first=fs.readFileSync('release-notes.md','utf8').split(/\r?\n/)[0].trim();
+            if(first!=='# '+v){console.error('release-notes.md 首行必须是 # '+v+'，现在是: '+first);process.exit(1)}
+            console.log('release-notes header ok:',first);
+          "
+
+      - name: Check for dead repository links
+        run: |
+          set +e
+          hits=$(grep -rIn --exclude-dir=.git --exclude-dir=.github \
+                   'github\.com/YuJunZhiXue' . | grep -v 'release-notes.md')
+          if [ -n "$hits" ]; then
+            echo "发现指向已删除仓库 YuJunZhiXue/dsh-purge 的链接："
+            echo "$hits"
+            exit 1
+          fi
+          echo "no dead links"

@@ -1,3 +1,26 @@
+# 1.1.80
+
+## 中文
+
+- 修复 **更新检查永久失败**：`package.json` 的 `homepage`/`repository`/`bugs`、`lib/redteam/ui.js` 的 `githubRepoOf()` 兜底、`client.js` 用户须知里的仓库链接，全部指向已删除的 `YuJunZhiXue/dsh-purge`（HTTP 404）。面板「检查更新」因此必然走到 `查询最新版本失败（npm view: 404; github: GitHub tags 不可用）`。现统一指向存活仓库 `null0xfff/dsh-purge`；署名句改指原始仓库 `ZiPengWei/dsh-purge`（2026-08-19 即已迁移公告，仍然存活）。
+- 修复 **`.github/workflows/release.yml` 永不触发**：`if: github.repository == 'YuJunZhiXue/dsh-purge'` 在本仓库恒为假，release job 每次都被跳过。改为 `null0xfff/dsh-purge`；发布成功日志里的地址同步更正。
+- 修复 **升级时误把已清洗文件当宿主原件覆盖干净备份**：`refreshStaleBaksForUpgrade` 仅用 `originalBuf.includes("dsh-purge")` 判定「当前文件是本插件产物」，但清洗后的 `dsh-agent-instructions/lib/index.js` 里没有任何 `dsh-purge` 字面量，于是被判成「宿主已升级」，直接用半清洗态覆盖掉 53316 字节的干净 `.dshpurge.bak`；`backupAll` 用 `openSync(bak,"wx")` + `EEXIST → continue`，备份永不重建。新增 `looksPurgedText()`（识别清洗标记 + 强尾串）作为第二判据。
+- 修复 **`state.js` 把被污染的 backup 当成 pristine 原件**：`pristineBytes` 无条件信任 `.dshpurge.bak`，`capturePristine` 对已存在的条目从不刷新，导致 `toggle/pristine/files/6d2836828c8d…` 与那份 54005 字节的污染 bak 完全同源。现以 `looksPurged()` 门控四条来源（`asar` / `asar.bak` / `bak` / `current`），并让 `capturePristine` 对污染条目重新派生、标记 `refreshed: true`。
+- 修复 **Windows 下原子写偶发 EPERM/EBUSY/EACCES**（杀软或索引器占住目标文件，`node_modules\.bin\dsh.ps1` 可稳定复现）：`atomicWriteFile` 在 rename 失败且错误码属于上述三种时，降级为直接 `writeFile`，不再直接抛。
+- 修复 **shim 探测走错文件系统层**：`isTextShim` 改用 `nodeFs.openSync/readSync/closeSync`。fd 级 API 不能经过 `hostFs` 的 `route()`——它只包装路径级同步方法。
+- 修复 **`#86 SESSION_STEER_ALWAYS_FOLLOWUP` 把排队中的 steer 也改成 next-turn**：队列分支里那句 `agent.steer(message)` 被一并改写，实际语义应保持 steer。恢复为 `agent.steer(message)`，并在 `forbid` 里显式禁用那两条 next-turn 标记，`markersAny: true`。
+- 移植本机已验证的补丁 #89–#92（宿主侧系统消息路径）：`SYSTEM_FIELD_EXTRACT`（`dsh-agent-loop`）、`OPENAI_NATIVE_SYSTEM_ROLE`（`pi-ai-completions`）、`ANTHROPIC_NATIVE_PARAMS_SYSTEM`（`pi-ai-anthropic-messages`）、`SUBAGENT_SAME_INJECT_PATH`（`subagent` / `subagent-types`）。
+
+## English
+
+- Fix **update check permanently failing**: `package.json`'s `homepage`/`repository`/`bugs`, the `githubRepoOf()` fallback in `lib/redteam/ui.js`, and the repo link in `client.js`'s user notice all pointed at the deleted `YuJunZhiXue/dsh-purge` (HTTP 404), so the panel's check always ended in `查询最新版本失败（npm view: 404; github: GitHub tags 不可用）`. All now point at the live `null0xfff/dsh-purge`; the attribution line points at the original `ZiPengWei/dsh-purge`, which is still alive and carried the migration notice on 2026-08-19.
+- Fix **`.github/workflows/release.yml` never running**: `if: github.repository == 'YuJunZhiXue/dsh-purge'` is always false here, so the release job was skipped on every push. Pointed at `null0xfff/dsh-purge` and corrected the publish log URL.
+- Fix **upgrade overwriting a clean backup with an already-purged file**: `refreshStaleBaksForUpgrade` decided "this file is our own output" solely from `originalBuf.includes("dsh-purge")`, but a purged `dsh-agent-instructions/lib/index.js` contains no `dsh-purge` literal at all. It was therefore read as "host upgraded" and clobbered the clean 53316-byte `.dshpurge.bak`; `backupAll` then short-circuits on `EEXIST` via `openSync(bak,"wx")`, so the backup never comes back. Added `looksPurgedText()` (marker + strong tail) as a second gate.
+- Fix **`state.js` treating a polluted backup as pristine**: `pristineBytes` trusted `.dshpurge.bak` unconditionally and `capturePristine` never refreshed an existing entry, so `toggle/pristine/files/6d2836828c8d…` was byte-identical to the polluted 54005-byte bak. All four sources (`asar` / `asar.bak` / `bak` / `current`) are now gated on `looksPurged()`, and `capturePristine` re-derives polluted entries with `refreshed: true`.
+- Fix **intermittent EPERM/EBUSY/EACCES on atomic writes under Windows** (antivirus or the indexer holds the target; reproducible via `node_modules\.bin\dsh.ps1`): `atomicWriteFile` now falls back to a direct `writeFile` instead of rethrowing when rename fails with one of those three codes.
+- Fix **shim detection going through the wrong filesystem layer**: `isTextShim` uses `nodeFs.openSync/readSync/closeSync`. fd-level APIs must not route through `hostFs.route()`, which only wraps path-level sync methods.
+- Fix **`#86 SESSION_STEER_ALWAYS_FOLLOWUP` rewriting queued steers into next-turn messages**: the queue branch's `agent.steer(message)` was caught by the same rewrite even though it should stay a steer. Restored, with the two next-turn markers added to `forbid` and `markersAny: true`.
+- Port the locally-verified patches #89–#92 for the host-side system-message path: `SYSTEM_FIELD_EXTRACT` (`dsh-agent-loop`), `OPENAI_NATIVE_SYSTEM_ROLE` (`pi-ai-completions`), `ANTHROPIC_NATIVE_PARAMS_SYSTEM` (`pi-ai-anthropic-messages`), `SUBAGENT_SAME_INJECT_PATH` (`subagent` / `subagent-types`).
 # 1.1.78
 
 ## 中文
@@ -858,32 +881,32 @@
 
 ## 涓枃
 
-- **淇 [#43](https://github.com/YuJunZhiXue/dsh-purge/issues/43)**锛氫笉鍐嶆妸 `profiles/*/cordis.patch.yml`锛堢敤鎴?patch 灞傦級绾冲叆 `backupAll`/`revertAll`锛涘崌绾ц嚜鎰堟椂涓嶄細鐢ㄦ棫 bak 瑕嗙洊鐢ㄦ埛鍚庢潵杩藉姞鐨?`insert`銆?- 鍚姩/杩樺師鏃朵富鍔ㄤ涪鎺夊巻鍙蹭笂璇缓鐨?`cordis.patch.yml.dshpurge.bak`锛屼繚鐣欏綋鍓嶇敤鎴锋枃浠躲€?- 鏂板 `npm run test:profile-patch`銆?
+- **淇 [#43](https://github.com/null0xfff/dsh-purge/issues/43)**锛氫笉鍐嶆妸 `profiles/*/cordis.patch.yml`锛堢敤鎴?patch 灞傦級绾冲叆 `backupAll`/`revertAll`锛涘崌绾ц嚜鎰堟椂涓嶄細鐢ㄦ棫 bak 瑕嗙洊鐢ㄦ埛鍚庢潵杩藉姞鐨?`insert`銆?- 鍚姩/杩樺師鏃朵富鍔ㄤ涪鎺夊巻鍙蹭笂璇缓鐨?`cordis.patch.yml.dshpurge.bak`锛屼繚鐣欏綋鍓嶇敤鎴锋枃浠躲€?- 鏂板 `npm run test:profile-patch`銆?
 ## English
 
-- **Fix [#43](https://github.com/YuJunZhiXue/dsh-purge/issues/43)**: stop including `profiles/*/cordis.patch.yml` (user patch layer) in `backupAll`/`revertAll`, so upgrade reapply no longer restores an old bak over later user `insert`s.
+- **Fix [#43](https://github.com/null0xfff/dsh-purge/issues/43)**: stop including `profiles/*/cordis.patch.yml` (user patch layer) in `backupAll`/`revertAll`, so upgrade reapply no longer restores an old bak over later user `insert`s.
 - Drop stale `cordis.patch.yml.dshpurge.bak` without restoring; keep the live user file.
 - Add `npm run test:profile-patch`.
 # 1.1.24
 
 ## 涓枃
 
-- **淇 [#40](https://github.com/YuJunZhiXue/dsh-purge/issues/40)**锛歚pathLooksDesktop` 涓嶅啀浠呭嚟璺緞閲岀殑 `deepseek-harness` 瀛愪覆鎶婃簮鐮佺増鍒ゆ垚妗岄潰绔紱闇€甯?`resources/` / `.exe` / `.app` 绛夊畨瑁呭舰鎬併€?- **淇 [#41](https://github.com/YuJunZhiXue/dsh-purge/issues/41)**锛氭簮鐮侀儴缃茬殑 `apps/cli`锛坱sdown 鏋勫缓浜х墿锛夌姝?hide-console 娉ㄥ叆锛沗revertAll` 鍦ㄦ棤 `.dshpurge.bak` 鏃跺彧璺宠繃銆佺粷涓嶅垹闄ょ洰鏍囨枃浠躲€?- 鏂板 `npm run test:surface` 鍥炲綊銆?
+- **淇 [#40](https://github.com/null0xfff/dsh-purge/issues/40)**锛歚pathLooksDesktop` 涓嶅啀浠呭嚟璺緞閲岀殑 `deepseek-harness` 瀛愪覆鎶婃簮鐮佺増鍒ゆ垚妗岄潰绔紱闇€甯?`resources/` / `.exe` / `.app` 绛夊畨瑁呭舰鎬併€?- **淇 [#41](https://github.com/null0xfff/dsh-purge/issues/41)**锛氭簮鐮侀儴缃茬殑 `apps/cli`锛坱sdown 鏋勫缓浜х墿锛夌姝?hide-console 娉ㄥ叆锛沗revertAll` 鍦ㄦ棤 `.dshpurge.bak` 鏃跺彧璺宠繃銆佺粷涓嶅垹闄ょ洰鏍囨枃浠躲€?- 鏂板 `npm run test:surface` 鍥炲綊銆?
 ## English
 
-- **Fix [#40](https://github.com/YuJunZhiXue/dsh-purge/issues/40)**: `pathLooksDesktop` no longer treats source trees as desktop just because the path contains `deepseek-harness`; require install shapes (`resources/`, `.exe`, `.app`).
-- **Fix [#41](https://github.com/YuJunZhiXue/dsh-purge/issues/41)**: skip hide-console injection into source `apps/cli` build output; `revertAll` never deletes targets when `.dshpurge.bak` is missing.
+- **Fix [#40](https://github.com/null0xfff/dsh-purge/issues/40)**: `pathLooksDesktop` no longer treats source trees as desktop just because the path contains `deepseek-harness`; require install shapes (`resources/`, `.exe`, `.app`).
+- **Fix [#41](https://github.com/null0xfff/dsh-purge/issues/41)**: skip hide-console injection into source `apps/cli` build output; `revertAll` never deletes targets when `.dshpurge.bak` is missing.
 - Add `npm run test:surface`.
 # 1.1.23
 
 ## 涓枃
 
-- **淇 [#38](https://github.com/YuJunZhiXue/dsh-purge/issues/38)**锛歚#1`/`#2`/`#3` 鎻愮ず璇嶈ˉ涓佹瘡娆?`apply` 鍙犲姞绾?+841 瀛楃銆佹案涓嶆敹鏁涖€?- **鍘熷洜**锛氭浛鎹骇鐗╀粛浠ュ墠涓€鐗堟枃鏈负鍓嶇紑锛屼笖鏈 `skipIfMarked`锛宍autoApplyOnStart` 姣忚疆閮戒細鍐嶅啓涓€灞傘€?- **淇**锛氫负 `#1`/`#2`/`#3` 琛?`skipIfMarked: true`锛圼#42](https://github.com/YuJunZhiXue/dsh-purge/pull/42)锛夛紝骞跺姞 `npm run test:idempotence` 鍥炲綊銆?- 宸茶啫鑳€鐨勫涓绘枃浠朵笉浼氳嚜鍔ㄧ缉鍥烇紝闇€杩樺師 `.dshpurge.bak` 鎴栭噸瑁?dsh 鍚庡啀 apply銆?
+- **淇 [#38](https://github.com/null0xfff/dsh-purge/issues/38)**锛歚#1`/`#2`/`#3` 鎻愮ず璇嶈ˉ涓佹瘡娆?`apply` 鍙犲姞绾?+841 瀛楃銆佹案涓嶆敹鏁涖€?- **鍘熷洜**锛氭浛鎹骇鐗╀粛浠ュ墠涓€鐗堟枃鏈负鍓嶇紑锛屼笖鏈 `skipIfMarked`锛宍autoApplyOnStart` 姣忚疆閮戒細鍐嶅啓涓€灞傘€?- **淇**锛氫负 `#1`/`#2`/`#3` 琛?`skipIfMarked: true`锛圼#42](https://github.com/null0xfff/dsh-purge/pull/42)锛夛紝骞跺姞 `npm run test:idempotence` 鍥炲綊銆?- 宸茶啫鑳€鐨勫涓绘枃浠朵笉浼氳嚜鍔ㄧ缉鍥烇紝闇€杩樺師 `.dshpurge.bak` 鎴栭噸瑁?dsh 鍚庡啀 apply銆?
 ## English
 
-- **Fix [#38](https://github.com/YuJunZhiXue/dsh-purge/issues/38)**: prompt patches `#1`/`#2`/`#3` grew by ~+841 chars on every `apply` and never converged.
+- **Fix [#38](https://github.com/null0xfff/dsh-purge/issues/38)**: prompt patches `#1`/`#2`/`#3` grew by ~+841 chars on every `apply` and never converged.
 - **Cause**: replacement text still starts with the previous pattern, and `skipIfMarked` was missing, so `autoApplyOnStart` rewrote every boot.
-- **Fix**: set `skipIfMarked: true` on `#1`/`#2`/`#3` ([#42](https://github.com/YuJunZhiXue/dsh-purge/pull/42)); add `npm run test:idempotence`.
+- **Fix**: set `skipIfMarked: true` on `#1`/`#2`/`#3` ([#42](https://github.com/null0xfff/dsh-purge/pull/42)); add `npm run test:idempotence`.
 - Already-bloated host files are not auto-shrunk 鈥?restore `.dshpurge.bak` or reinstall dsh, then apply again.
 
 # 1.1.22
