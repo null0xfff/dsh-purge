@@ -1,3 +1,17 @@
+# 1.1.82
+
+## 中文
+
+- Windows 解包与 CLI 修复不再创建 resources/app/runtime junction，避免官方安装器清理旧安装时沿绝对联接清空新版 runtime。
+- 启动时先修正展开目录中的 CLI support 路径，再迁移活动 app 和插件保留目录中的旧 runtime 联接，使用非递归 unlink 保留目标文件。
+- 修复 CLI 备份未等待的异步写入，并增加 Windows/Linux 联接迁移、目标文件保留和 CLI 回退测试。
+
+## English
+
+- Stop creating Windows app/runtime junctions, which NSIS follows when deleting the old installation after replacement.
+- Repair the expanded CLI support path, then detach legacy runtime links in active and preserved app directories at startup without traversing their targets.
+- Write CLI backups synchronously and cover migration, target preservation and CLI fallback on Windows and Linux CI.
+
 # 1.1.81
 
 ## 中文
